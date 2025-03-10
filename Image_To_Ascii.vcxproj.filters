@@ -15,7 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Image_To_Ascii.cpp">
+    <ClCompile Include="DoGfilter.cpp">
       <Filter>File di origine</Filter>
     </ClCompile>
   </ItemGroup>
