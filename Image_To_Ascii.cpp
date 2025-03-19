@@ -11,14 +11,15 @@ using namespace sf;
 vector<vector<float>> GenerateGaussianKernel(int size, float sigma);
 Image GaussianBlur(Image& image, int kernelsize, float sigma);
 Uint8 toGrayscale(const Color& color);
-Image GaussianFilterDOG(Image& image, int kernelSize, float sigma1, float sigma2, bool binary, int threshold);
+Image GaussianFilterDOG(Image& image, int kernelSize, float sigma1, float sigma2, int threshold, bool binary);
 Image ResizeImage(Image& image, int resizeFactor);
 
 int main() {
      
     Image i;
 
-    if (i.loadFromFile("C:\\Users\\utente\\OneDrive\\Desktop\\Superliminal\\nswitchds_superliminal_01.jpg")) {
+    // Check if the image is loaded correctly
+    if (i.loadFromFile("C:\\Users\\utente\\OneDrive\\Desktop\\Famous-Portrait-Paintings-848x530-1.jpg")) {
         cout << "Image loaded successfully." << endl;
     }
     else {
@@ -28,12 +29,11 @@ int main() {
 
 
     int kernelSize = 5;
-    float sigma1 = 1.0f;
-    float sigma2 = 2.0;
-    bool binary = true;
+    float sigma1 = 2.0f;     // the sigma are arbitrary values for the gaussian filter 
+    float sigma2 = 5.50f;    
     int threshold = 126;
 
-    Image dogImage = GaussianFilterDOG(i, kernelSize, sigma1, sigma2, binary, threshold);
+    //Image dogImage = GaussianFilterDOG(i, kernelSize, sigma1, sigma2, threshold);
     //Image blurredI = GaussianBlur(i, 5, 250.0f);
 
     Vector2u imageSize = i.getSize();
@@ -47,7 +47,10 @@ int main() {
     string asciiChars = " .:-=+*%#@";
     int nAscii = asciiChars.length();
 
-    Image resizedImage = ResizeImage(i, 8);
+    //Image resizedImage = ResizeImage(i, 1);     //use this only if downscale is needed
+    Image resizedImage = i;
+    Image filteredImage = GaussianFilterDOG(resizedImage, kernelSize, sigma1, sigma2, threshold, true);
+    //resizedImage = GaussianFilterDOG(resizedImage, kernelSize, sigma1, sigma2, threshold, true);
 
     // max x value for the terminal 
     float fixedWidth = 300.0f;
@@ -65,10 +68,10 @@ int main() {
         for (int x = 1; x < xSize - 1; x++) {
             int oX = (int)(x / iRatio);
             int oY = (int)(y /  iRatio);
-            color1 = resizedImage.getPixel(oX, oY);
                        
             int pixel_x = 0, pixel_y = 0;
 
+            // Apllying the sobel operator
             for (int i = -1; i <= 1; i++) {
                 for (int j = -1; j <= 1; j++) {
                     Color pixel = resizedImage.getPixel((int)(x + i) / iRatio,(int) (y + j) / iRatio);
@@ -81,14 +84,17 @@ int main() {
             int magn = ceil(sqrt(pixel_x * pixel_x + pixel_y * pixel_y));
             magn = min(255, max(0, magn));
 
-            edgedI.setPixel(oX , oY, Color(magn, magn, magn));
-
-            if (magn < 50) {
+            if (magn < 190) {
+                edgedI.setPixel(oX, oY, Color::Black);
+                color2 = resizedImage.getPixel(oX, oY);
+                grayScale = color2.r * 0.299 + color2.g * 0.587 + color2.b * 0.114;
                 int mappedIndex = (grayScale * (nAscii - 1)) / 256.0;
                 cout << asciiChars[mappedIndex];
                 continue;
             }
+            edgedI.setPixel(oX, oY, Color(magn, magn, magn));
 
+            // using the angle from atan2 to decide what characther to use
             float angle = atan2(pixel_x, pixel_y) * 180.0 / M_PI;
             if (angle < 0) angle += 360;
 
@@ -113,7 +119,8 @@ int main() {
 
   
     Texture texture;
-    texture.loadFromImage(edgedI);
+    texture.loadFromImage(resizedImage);
+    //texture.loadFromImage(edgedI);
     //texture.loadFromImage(blurredI);
     Sprite sprite(texture);
     RenderWindow window(VideoMode(edgedI.getSize().x, edgedI.getSize().y), "Image");
@@ -132,6 +139,7 @@ int main() {
     return 0;
 }
 
+// Creates the Kernels used in the gaussian filter
 vector<vector<float>> GenerateGaussianKernel(int size, float sigma) {
     vector<vector<float>> kernel(size, vector<float>(size));
     float sum = 0.0;
@@ -154,6 +162,7 @@ vector<vector<float>> GenerateGaussianKernel(int size, float sigma) {
     return kernel;
 }
 
+// Blurring the image
 Image GaussianBlur(Image& image, int kernelsize, float sigma) {
     Image blurredImage = image;
     vector<vector<float>> kernel = GenerateGaussianKernel(kernelsize, sigma);
@@ -187,11 +196,13 @@ Image GaussianBlur(Image& image, int kernelsize, float sigma) {
     return blurredImage;
 }
 
+// Change the pixel color to it's grayscale value
 Uint8 toGrayscale(const Color& color) {
     return static_cast<Uint8>(0.299 * color.r + 0.587 * color.g + 0.114 * color.b);
 }
 
-Image GaussianFilterDOG(Image& image, int kernelSize, float sigma1, float sigma2, bool binary, int threshold) {
+// Apllying the difference of Gaussians
+Image GaussianFilterDOG(Image& image, int kernelSize, float sigma1, float sigma2, int threshold = 128, bool binary = true) {
     Image blurred1 = GaussianBlur(image, kernelSize, sigma1);
     Image blurred2 = GaussianBlur(image, kernelSize, sigma2);
 
@@ -203,12 +214,13 @@ Image GaussianFilterDOG(Image& image, int kernelSize, float sigma1, float sigma2
             Uint8 gray1 = toGrayscale(blurred1.getPixel(x, y));
             Uint8 gray2 = toGrayscale(blurred2.getPixel(x, y));
 
-            int diff = static_cast<int>(gray1) - static_cast<int>(gray2) + 129;
+            int diff = static_cast<int>(min(gray1, gray2)) - static_cast<int>(max(gray1, gray2)) + 128;
 
             diff = max(0, min(255, diff));
 
             if (binary) {
-                diff = (diff > threshold) ? 255 : 0;
+                // permits the white and black coloration
+                diff = (diff > threshold) ? 255 : 0;   
             }
 
 
@@ -219,6 +231,8 @@ Image GaussianFilterDOG(Image& image, int kernelSize, float sigma1, float sigma2
     return result;
 }
 
+
+// Downscaling the image to fit the pixel to 8x8 dimension of the ASCII chaaracthers
 Image ResizeImage(Image& image, int resizeFactor) {
 
     Vector2u originalsize = image.getSize();
