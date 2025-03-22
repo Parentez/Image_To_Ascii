@@ -15,11 +15,11 @@ Image GaussianFilterDOG(Image& image, int kernelSize, float sigma1, float sigma2
 Image ResizeImage(Image& image, int resizeFactor);
 
 int main() {
-     
+
     Image i;
 
     // Check if the image is loaded correctly
-    if (i.loadFromFile("C:\\Users\\utente\\OneDrive\\Desktop\\Famous-Portrait-Paintings-848x530-1.jpg")) {
+    if (i.loadFromFile("C:\\Users\\utente\\OneDrive\\Desktop\\Superliminal\\nswitchds_superliminal_01.jpg")) {
         cout << "Image loaded successfully." << endl;
     }
     else {
@@ -28,10 +28,10 @@ int main() {
     }
 
 
-    int kernelSize = 5;
+    int kernelSize = 9;
     float sigma1 = 2.0f;     // the sigma are arbitrary values for the gaussian filter 
-    float sigma2 = 5.50f;    
-    int threshold = 126;
+    float sigma2 = 3.6f;
+    int threshold = 128;
 
     //Image dogImage = GaussianFilterDOG(i, kernelSize, sigma1, sigma2, threshold);
     //Image blurredI = GaussianBlur(i, 5, 250.0f);
@@ -47,17 +47,17 @@ int main() {
     string asciiChars = " .:-=+*%#@";
     int nAscii = asciiChars.length();
 
-    //Image resizedImage = ResizeImage(i, 1);     //use this only if downscale is needed
-    Image resizedImage = i;
+    Image resizedImage = ResizeImage(i, 8);     //use this only if downscale is needed
+    //Image resizedImage = i;
     Image filteredImage = GaussianFilterDOG(resizedImage, kernelSize, sigma1, sigma2, threshold, true);
     //resizedImage = GaussianFilterDOG(resizedImage, kernelSize, sigma1, sigma2, threshold, true);
 
     // max x value for the terminal 
     float fixedWidth = 300.0f;
-    float iRatio = fixedWidth / xSize; 
-    xSize = (int) fixedWidth;
-    ySize = (int) ySize * iRatio;
-   
+    float iRatio = fixedWidth / xSize;
+    xSize = (int)fixedWidth;
+    ySize = (int)ySize * iRatio;
+
     vector<vector<float>> xKernel = { {1.0f, 0.0f, -1.0f}, {2.0f, 0.0f, -2.0f}, {1.0f, 0.0f, -1.0f} };
     vector<vector<float>> yKernel = { {1.0f, 2.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {-1.0f, -2.0f, -1.0f} };
 
@@ -66,15 +66,15 @@ int main() {
 
     for (int y = 1; y < ySize - 1; y++) {
         for (int x = 1; x < xSize - 1; x++) {
-            int oX = (int)(x / iRatio);
-            int oY = (int)(y /  iRatio);
-                       
+            int oX = (int) (x/ iRatio);
+            int oY = (int) (y/ iRatio);
+
             int pixel_x = 0, pixel_y = 0;
 
             // Apllying the sobel operator
             for (int i = -1; i <= 1; i++) {
                 for (int j = -1; j <= 1; j++) {
-                    Color pixel = resizedImage.getPixel((int)(x + i) / iRatio,(int) (y + j) / iRatio);
+                    Color pixel = filteredImage.getPixel((int)(x + i)/iRatio, (int)(y + j)/iRatio);
                     grayScale = pixel.r * 0.299 + pixel.g * 0.587 + pixel.b * 0.114;
                     pixel_x += xKernel[i + 1][j + 1] * grayScale;
                     pixel_y += yKernel[i + 1][j + 1] * grayScale;
@@ -84,16 +84,19 @@ int main() {
             int magn = ceil(sqrt(pixel_x * pixel_x + pixel_y * pixel_y));
             magn = min(255, max(0, magn));
 
-            if (magn < 190) {
+            if (magn < 50) {
                 edgedI.setPixel(oX, oY, Color::Black);
                 color2 = resizedImage.getPixel(oX, oY);
                 grayScale = color2.r * 0.299 + color2.g * 0.587 + color2.b * 0.114;
                 int mappedIndex = (grayScale * (nAscii - 1)) / 256.0;
                 cout << asciiChars[mappedIndex];
+                
                 continue;
+                
             }
             edgedI.setPixel(oX, oY, Color(magn, magn, magn));
 
+            
             // using the angle from atan2 to decide what characther to use
             float angle = atan2(pixel_x, pixel_y) * 180.0 / M_PI;
             if (angle < 0) angle += 360;
@@ -113,14 +116,17 @@ int main() {
             }
 
             cout << asciiChar;
+        
         }
         cout << endl;
+        
     }
 
-  
+
     Texture texture;
-    texture.loadFromImage(resizedImage);
-    //texture.loadFromImage(edgedI);
+    //texture.loadFromImage(filteredImage);
+    //texture.loadFromImage(resizedImage);
+    texture.loadFromImage(edgedI);
     //texture.loadFromImage(blurredI);
     Sprite sprite(texture);
     RenderWindow window(VideoMode(edgedI.getSize().x, edgedI.getSize().y), "Image");
@@ -202,7 +208,7 @@ Uint8 toGrayscale(const Color& color) {
 }
 
 // Apllying the difference of Gaussians
-Image GaussianFilterDOG(Image& image, int kernelSize, float sigma1, float sigma2, int threshold = 128, bool binary = true) {
+Image GaussianFilterDOG(Image& image, int kernelSize, float sigma1, float sigma2, int threshold, bool bw) {
     Image blurred1 = GaussianBlur(image, kernelSize, sigma1);
     Image blurred2 = GaussianBlur(image, kernelSize, sigma2);
 
@@ -214,21 +220,40 @@ Image GaussianFilterDOG(Image& image, int kernelSize, float sigma1, float sigma2
             Uint8 gray1 = toGrayscale(blurred1.getPixel(x, y));
             Uint8 gray2 = toGrayscale(blurred2.getPixel(x, y));
 
-            int diff = static_cast<int>(min(gray1, gray2)) - static_cast<int>(max(gray1, gray2)) + 128;
+            int diff = static_cast<int>(gray2) - static_cast<int>(gray1) + 128;
 
             diff = max(0, min(255, diff));
 
-            if (binary) {
+            if (bw) {
                 // permits the white and black coloration
-                diff = (diff > threshold) ? 255 : 0;   
+                diff = (diff > threshold) ? 255 : 0;
             }
-
 
             result.setPixel(x, y, Color(diff, diff, diff));
         }
     }
 
-    return result;
+    Image filteredResult = result;
+    
+    for (int pass = 0; pass < 2; pass++) {
+        for (unsigned int y = 2; y < size.y - 2; y++) {
+            for (unsigned int x = 2; x < size.x - 2; x++) {
+                vector<int> neighborhood;
+
+                for (int j = -2; j <= 2; j++) {
+                    for (int i = -2; i <= 2; i++) {
+                        neighborhood.push_back(toGrayscale(result.getPixel(x + i, y + j)));
+                    }
+                }
+
+                sort(neighborhood.begin(), neighborhood.end());
+                int medianValue = neighborhood[12];
+
+                filteredResult.setPixel(x, y, Color(medianValue, medianValue, medianValue));
+            }
+        }
+    }
+    return filteredResult;
 }
 
 
@@ -244,7 +269,7 @@ Image ResizeImage(Image& image, int resizeFactor) {
 
     Sprite sprite(texture);
     sprite.setScale(static_cast<float>(xreSized) / originalsize.x, static_cast<float>(yreSized) / originalsize.y);
-    
+
     RenderTexture resizeTex;
     resizeTex.create(xreSized, yreSized);
     resizeTex.clear(Color::Transparent);
