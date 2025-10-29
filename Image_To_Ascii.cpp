@@ -18,8 +18,10 @@ int main() {
 
     Image i;
 
-    // Check if the image is loaded correctly
-    if (i.loadFromFile("C:\\Users\\utente\\OneDrive\\Desktop\\Superliminal\\nswitchds_superliminal_01.jpg")) {
+    // ------------------------
+    // INSERT THE IMAGE HERE
+    // ------------------------
+    if (i.loadFromFile("<Path to the image here>")) {
         cout << "Image loaded successfully." << endl;
     }
     else {
